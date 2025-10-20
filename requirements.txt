@@ -1,5 +1,12 @@
 Flask>=3.0.0
 transformers>=4.35.0
 gunicorn>=21.2.0
---find-links https://download.pytorch.org/whl/torch_stable.html
-torch==2.5.1
+https://download.pytorch.org/whl/cpu/torch-2.5.1%2Bcpu-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl; platform_system=="Linux"
+--no-deps
+filelock
+typing-extensions>=4.8.0
+networkx
+jinja2
+fsspec
+sympy==1.13.1
+setuptools
