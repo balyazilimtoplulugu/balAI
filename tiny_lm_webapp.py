@@ -3,13 +3,13 @@ BAL AI - Bornova Anadolu Lisesi Yapay Zeka Modeli
 Flask web uygulaması
 """
 
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, send_from_directory
 import torch
 import torch.nn as nn
 from transformers import GPT2Tokenizer
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 
 # Yapılandırma
 class Config:
@@ -21,7 +21,7 @@ class Config:
     ff_dim = 512
     dropout = 0.1
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_path = "old models\first model on wikitext-2 5mb 13m parameters\tiny_lm_model.pt"  # Yeni model için güncellendi
+    model_path = "tiny_lm_model.pt"
 
 config = Config()
 
@@ -64,7 +64,7 @@ class TinyLanguageModel(nn.Module):
         
         return logits
 
-def generate_text(model, tokenizer, prompt, max_length=100, temperature=0.8):
+def generate_text(model, tokenizer, prompt, max_length=50, temperature=0.8):
     """Metinden devam et"""
     model.eval()
     
@@ -99,7 +99,7 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- SEO Meta Tags -->
-    <meta name="description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 13 milyon parametreli yapay zeka dil modeli.">
+    <meta name="description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 1 milyon parametreli yapay zeka dil modeli.">
     <meta name="keywords" content="Bornova Anadolu Lisesi, BAL, yapay zeka, AI, dil modeli, öğrenci projesi, makine öğrenmesi">
     <meta name="author" content="Bornova Anadolu Lisesi Yazılım Topluluğu">
     
@@ -107,14 +107,17 @@ HTML_TEMPLATE = """
     <meta property="og:type" content="website">
     <meta property="og:url" content="">
     <meta property="og:title" content="BAL AI - Bornova Anadolu Lisesi Yapay Zeka">
-    <meta property="og:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 13 milyon parametreli yapay zeka dil modeli.">
-    <meta property="og:image" content="/logo.png">
+    <meta property="og:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 1 milyon parametreli yapay zeka dil modeli.">
+    <!-- Open Graph -->
+    <meta property="og:image" content="https://balai-5tqa.onrender.com/logo.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:image" content="https://balai-5tqa.onrender.com/logo.png">
     
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="BAL AI - Bornova Anadolu Lisesi Yapay Zeka">
-    <meta name="twitter:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 13 milyon parametreli yapay zeka dil modeli.">
-    <meta name="twitter:image" content="/logo.png">
+    <meta name="twitter:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 1 milyon parametreli yapay zeka dil modeli.">
     
     <!-- Favicon -->
     <link rel="shortcut icon" href="favicon.ico">
@@ -537,7 +540,7 @@ HTML_TEMPLATE = """
                     <i class="fas fa-text-width"></i>
                     Maksimum Uzunluk:
                 </div>
-                <input type="number" id="max-length" value="100" min="10" max="500" />
+                <input type="number" id="max-length" value="10" min="1" max="500" />
             </div>
             <div class="setting-group">
                 <div class="setting-label">
@@ -694,8 +697,8 @@ tokenizer.pad_token = tokenizer.eos_token
 model = TinyLanguageModel(config)
 
 if os.path.exists(config.model_path):
-    model.load_state_dict(torch.load(config.model_path, map_location=config.device))
-    model.to(config.device)
+    model.load_state_dict(torch.load(config.model_path, map_location='cpu', weights_only=True))
+    model.to('cpu')  # Force CPU
     model.eval()
     print(f"✓ Model başarıyla yüklendi: {config.model_path}")
     print(f"✓ Cihaz: {config.device}")
@@ -707,25 +710,34 @@ else:
 def home():
     return render_template_string(HTML_TEMPLATE)
 
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory('static', 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+@app.route('/logo.png')
+def logo():
+    return send_from_directory('static', 'logo.png', mimetype='image/png')
+
 @app.route('/generate', methods=['POST'])
 def generate():
     try:
         data = request.json
         prompt = data.get('prompt', '')
-        max_length = data.get('max_length', 100)
+        max_length = min(data.get('max_length', 100), 50)  # Limit to 50 tokens max
         temperature = data.get('temperature', 0.8)
         
         if not prompt:
             return jsonify({'error': 'Prompt gerekli'}), 400
         
-        # Metin üret
         generated = generate_text(model, tokenizer, prompt, max_length, temperature)
-        
+
         return jsonify({
             'generated_text': generated,
             'prompt': prompt
         })
     
+    except TimeoutError:
+        return jsonify({'error': 'Metin üretimi çok uzun sürdü. Daha kısa bir uzunluk deneyin.'}), 408
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
