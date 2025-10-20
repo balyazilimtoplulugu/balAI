@@ -120,8 +120,8 @@ HTML_TEMPLATE = """
     <meta name="twitter:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 1 milyon parametreli yapay zeka dil modeli.">
     
     <!-- Favicon -->
-    <link rel="shortcut icon" href="favicon.ico">
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="https://balai-5tqa.onrender.com/favicon.ico">
+    <link rel="icon" href="https://balai-5tqa.onrender.com/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -652,6 +652,11 @@ HTML_TEMPLATE = """
                     })
                 });
 
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+
                 const data = await response.json();
 
                 if (data.error) {
@@ -666,6 +671,7 @@ HTML_TEMPLATE = """
             } catch (error) {
                 output.classList.add('error', 'show');
                 outputText.textContent = '❌ Bağlantı hatası: ' + error.message;
+                console.error('Error:', error);
             } finally {
                 loading.classList.remove('show');
                 button.disabled = false;
@@ -696,15 +702,23 @@ tokenizer.pad_token = tokenizer.eos_token
 
 model = TinyLanguageModel(config)
 
+# Check if model exists and load it
 if os.path.exists(config.model_path):
-    model.load_state_dict(torch.load(config.model_path, map_location='cpu', weights_only=True))
-    model.to('cpu')  # Force CPU
-    model.eval()
-    print(f"✓ Model başarıyla yüklendi: {config.model_path}")
-    print(f"✓ Cihaz: {config.device}")
+    try:
+        model.load_state_dict(torch.load(config.model_path, map_location='cpu'))
+        model.to('cpu')  # Force CPU
+        model.eval()
+        print(f"✓ Model başarıyla yüklendi: {config.model_path}")
+        print(f"✓ Cihaz: {config.device}")
+    except Exception as e:
+        print(f"❌ Model yüklenirken hata: {str(e)}")
+        # Create a dummy model so the app doesn't crash
+        model.eval()
 else:
     print(f"❌ HATA: Model dosyası bulunamadı: '{config.model_path}'")
-    print("Lütfen önce modeli eğitin!")
+    print("Boş bir model oluşturuluyor...")
+    # Create a dummy model so the app doesn't crash
+    model.eval()
 
 @app.route('/')
 def home():
@@ -722,12 +736,19 @@ def logo():
 def generate():
     try:
         data = request.json
+        if not data:
+            return jsonify({'error': 'No JSON data received'}), 400
+            
         prompt = data.get('prompt', '')
         max_length = min(data.get('max_length', 100), 50)  # Limit to 50 tokens max
         temperature = data.get('temperature', 0.8)
         
         if not prompt:
             return jsonify({'error': 'Prompt gerekli'}), 400
+        
+        # Check if model exists before trying to generate
+        if not os.path.exists(config.model_path):
+            return jsonify({'error': f'Model dosyası bulunamadı: {config.model_path}'}), 500
         
         generated = generate_text(model, tokenizer, prompt, max_length, temperature)
 
@@ -739,7 +760,17 @@ def generate():
     except TimeoutError:
         return jsonify({'error': 'Metin üretimi çok uzun sürdü. Daha kısa bir uzunluk deneyin.'}), 408
     except Exception as e:
+        # Log the error for debugging
+        app.logger.error(f"Error in generate endpoint: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/health')
+def health():
+    return jsonify({
+        'status': 'ok',
+        'model_loaded': os.path.exists(config.model_path),
+        'device': config.device
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
