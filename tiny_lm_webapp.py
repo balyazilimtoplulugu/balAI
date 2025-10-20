@@ -97,7 +97,28 @@ HTML_TEMPLATE = """
     <title>BAL AI - Bornova Anadolu Lisesi Yapay Zeka</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş yapay zeka modeli">
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 13 milyon parametreli yapay zeka dil modeli.">
+    <meta name="keywords" content="Bornova Anadolu Lisesi, BAL, yapay zeka, AI, dil modeli, öğrenci projesi, makine öğrenmesi">
+    <meta name="author" content="Bornova Anadolu Lisesi Yazılım Topluluğu">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="">
+    <meta property="og:title" content="BAL AI - Bornova Anadolu Lisesi Yapay Zeka">
+    <meta property="og:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 13 milyon parametreli yapay zeka dil modeli.">
+    <meta property="og:image" content="/logo.png">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="BAL AI - Bornova Anadolu Lisesi Yapay Zeka">
+    <meta name="twitter:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 13 milyon parametreli yapay zeka dil modeli.">
+    <meta name="twitter:image" content="/logo.png">
+    
+    <!-- Favicon -->
+    <link rel="shortcut icon" href="favicon.ico">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
