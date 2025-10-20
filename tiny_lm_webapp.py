@@ -1,6 +1,6 @@
 """
-Flask Web App for Tiny Language Model
-Serves your trained model through a simple web interface
+BAL AI - Bornova Anadolu Lisesi Yapay Zeka Modeli
+Flask web uygulaması
 """
 
 from flask import Flask, render_template_string, request, jsonify
@@ -11,7 +11,7 @@ import os
 
 app = Flask(__name__)
 
-# Configuration (must match training config)
+# Yapılandırma
 class Config:
     vocab_size = 50257
     max_seq_length = 128
@@ -21,11 +21,11 @@ class Config:
     ff_dim = 512
     dropout = 0.1
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_path = "tiny_lm_model.pt"
+    model_path = "old models\first model on wikitext-2 5mb 13m parameters\tiny_lm_model.pt"  # Yeni model için güncellendi
 
 config = Config()
 
-# Model definition (same as training script)
+# Model tanımı
 class TinyLanguageModel(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -65,7 +65,7 @@ class TinyLanguageModel(nn.Module):
         return logits
 
 def generate_text(model, tokenizer, prompt, max_length=100, temperature=0.8):
-    """Generate text from a prompt"""
+    """Metinden devam et"""
     model.eval()
     
     input_ids = tokenizer.encode(prompt, return_tensors="pt").to(config.device)
@@ -89,13 +89,16 @@ def generate_text(model, tokenizer, prompt, max_length=100, temperature=0.8):
     generated_text = tokenizer.decode(input_ids[0], skip_special_tokens=True)
     return generated_text
 
-# HTML template
+# HTML şablonu
 HTML_TEMPLATE = """
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
-    <title>Tiny Language Model</title>
+    <title>BAL AI - Bornova Anadolu Lisesi Yapay Zeka</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş yapay zeka modeli">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -105,7 +108,7 @@ HTML_TEMPLATE = """
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -117,139 +120,215 @@ HTML_TEMPLATE = """
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 800px;
+            max-width: 900px;
             width: 100%;
             padding: 40px;
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 3px solid #fee2e2;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .logo-icon {
+            font-size: 3em;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         
         h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 2em;
+            color: #991b1b;
+            font-size: 2.5em;
+            font-weight: 700;
+            letter-spacing: -1px;
         }
         
         .subtitle {
             color: #666;
-            margin-bottom: 30px;
-            font-size: 0.9em;
+            margin-top: 10px;
+            font-size: 1.1em;
         }
         
-        .input-group {
-            margin-bottom: 20px;
+        .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-top: 15px;
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+        }
+        
+        .input-section {
+            margin-bottom: 30px;
         }
         
         label {
             display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
+            margin-bottom: 10px;
+            color: #991b1b;
+            font-weight: 600;
+            font-size: 1.05em;
         }
         
-        input[type="text"],
-        textarea {
+        label i {
+            margin-right: 8px;
+        }
+        
+        input[type="text"] {
             width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            padding: 15px;
+            border: 2px solid #fecaca;
+            border-radius: 12px;
             font-size: 16px;
-            transition: border-color 0.3s;
+            transition: all 0.3s;
             font-family: inherit;
+            background: #fef2f2;
         }
         
-        input[type="text"]:focus,
-        textarea:focus {
+        input[type="text"]:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #dc2626;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
         }
         
         .settings {
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #fef2f2;
+            border-radius: 12px;
+            border: 2px solid #fecaca;
         }
         
-        .settings > div {
-            flex: 1;
+        .setting-group {
+            display: flex;
+            flex-direction: column;
         }
         
-        input[type="number"],
+        .setting-label {
+            color: #991b1b;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+        
+        input[type="number"] {
+            padding: 10px;
+            border: 2px solid #fecaca;
+            border-radius: 8px;
+            font-size: 15px;
+            background: white;
+        }
+        
         input[type="range"] {
             width: 100%;
-            padding: 8px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
+            height: 8px;
+            border-radius: 5px;
+            background: #fecaca;
+            outline: none;
+            -webkit-appearance: none;
         }
         
-        .range-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
+            border: none;
         }
         
         .range-value {
-            min-width: 40px;
+            display: inline-block;
+            min-width: 45px;
             text-align: center;
-            font-weight: 600;
-            color: #667eea;
+            font-weight: 700;
+            color: #dc2626;
+            background: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            margin-left: 10px;
         }
         
-        button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .generate-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
             color: white;
             border: none;
-            padding: 14px 32px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
+            padding: 18px 32px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            width: 100%;
+            transition: all 0.3s;
+            box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
         }
         
-        button:hover {
+        .generate-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 8px 25px rgba(220, 38, 38, 0.5);
         }
         
-        button:active {
+        .generate-btn:active {
             transform: translateY(0);
         }
         
-        button:disabled {
-            background: #ccc;
+        .generate-btn:disabled {
+            background: #d1d5db;
             cursor: not-allowed;
             transform: none;
-        }
-        
-        .output {
-            margin-top: 30px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-            display: none;
-        }
-        
-        .output.show {
-            display: block;
-        }
-        
-        .output h3 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-        
-        .output-text {
-            color: #555;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+            box-shadow: none;
         }
         
         .loading {
             text-align: center;
-            padding: 20px;
+            padding: 30px;
             display: none;
         }
         
@@ -258,13 +337,13 @@ HTML_TEMPLATE = """
         }
         
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border: 4px solid #fecaca;
+            border-top: 4px solid #dc2626;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
+            margin: 0 auto 15px;
         }
         
         @keyframes spin {
@@ -272,115 +351,270 @@ HTML_TEMPLATE = """
             100% { transform: rotate(360deg); }
         }
         
+        .loading-text {
+            color: #991b1b;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        
+        .output {
+            margin-top: 30px;
+            padding: 25px;
+            background: linear-gradient(to bottom right, #fef2f2, #fff);
+            border-radius: 12px;
+            border-left: 5px solid #dc2626;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: none;
+            animation: slideIn 0.4s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .output.show {
+            display: block;
+        }
+        
+        .output h3 {
+            color: #991b1b;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .output-text {
+            color: #374151;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 1.05em;
+        }
+        
         .error {
-            background: #fee;
-            border-left-color: #f44;
-            color: #c00;
+            background: #fee2e2;
+            border-left-color: #dc2626;
+        }
+        
+        .error .output-text {
+            color: #991b1b;
+            font-weight: 600;
         }
         
         .examples {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #e0e0e0;
+            margin-top: 30px;
+            padding-top: 25px;
+            border-top: 2px solid #fecaca;
         }
         
         .examples h4 {
-            color: #666;
-            margin-bottom: 10px;
-            font-size: 0.9em;
+            color: #991b1b;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            font-weight: 600;
         }
         
         .example-buttons {
             display: flex;
-            gap: 10px;
+            gap: 12px;
             flex-wrap: wrap;
         }
         
         .example-btn {
-            background: #f0f0f0;
-            color: #555;
-            padding: 8px 16px;
-            border-radius: 6px;
+            background: #fef2f2;
+            color: #991b1b;
+            padding: 10px 18px;
+            border-radius: 8px;
             font-size: 14px;
             cursor: pointer;
-            transition: background 0.2s;
-            border: 1px solid #ddd;
+            transition: all 0.2s;
+            border: 2px solid #fecaca;
+            font-weight: 500;
         }
         
         .example-btn:hover {
-            background: #e0e0e0;
+            background: #fee2e2;
+            border-color: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 25px;
+            border-top: 2px solid #fecaca;
+            color: #991b1b;
+            font-size: 0.95em;
+        }
+        
+        .footer i {
+            color: #dc2626;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 25px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .settings {
+                grid-template-columns: 1fr;
+            }
+            
+            .example-buttons {
+                flex-direction: column;
+            }
+            
+            .example-btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🤖 Tiny Language Model</h1>
-        <p class="subtitle">Your personal AI text generator (~1M parameters)</p>
-        
-        <div class="input-group">
-            <label for="prompt">Enter your prompt:</label>
-            <input type="text" id="prompt" placeholder="The future of artificial intelligence is..." />
+        <div class="header">
+            <div class="logo-section">
+                <i class="fas fa-brain logo-icon"></i>
+                <h1>BAL AI</h1>
+            </div>
+            <p class="subtitle">Bornova Anadolu Lisesi Yapay Zeka Modeli</p>
+            <div class="badge">
+                <i class="fas fa-graduation-cap"></i> 1 Milyon Parametre
+            </div>
         </div>
-        
+
+        <div class="input-section">
+            <label for="prompt">
+                <i class="fas fa-pencil-alt"></i>
+                Başlangıç Metni Girin:
+            </label>
+            <input 
+                type="text" 
+                id="prompt" 
+                placeholder="Örn: Yapay zekanın geleceği..." 
+                autocomplete="off"
+            />
+        </div>
+
         <div class="settings">
-            <div>
-                <label for="max-length">Max Length:</label>
+            <div class="setting-group">
+                <div class="setting-label">
+                    <i class="fas fa-text-width"></i>
+                    Maksimum Uzunluk:
+                </div>
                 <input type="number" id="max-length" value="100" min="10" max="500" />
             </div>
-            <div>
-                <label for="temperature">Temperature: <span class="range-value" id="temp-value">0.8</span></label>
-                <input type="range" id="temperature" min="0.1" max="2.0" step="0.1" value="0.8" 
-                       oninput="document.getElementById('temp-value').textContent = this.value" />
+            <div class="setting-group">
+                <div class="setting-label">
+                    <i class="fas fa-temperature-high"></i>
+                    Yaratıcılık Seviyesi:
+                    <span class="range-value" id="temp-value">0.8</span>
+                </div>
+                <input 
+                    type="range" 
+                    id="temperature" 
+                    min="0.1" 
+                    max="2.0" 
+                    step="0.1" 
+                    value="0.8" 
+                    oninput="document.getElementById('temp-value').textContent = this.value"
+                />
             </div>
         </div>
-        
-        <button id="generate-btn" onclick="generateText()">Generate Text</button>
-        
+
+        <button class="generate-btn" onclick="generateText()">
+            <i class="fas fa-magic"></i>
+            Metin Üret
+        </button>
+
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>Generating text...</p>
+            <p class="loading-text">Metin üretiliyor...</p>
         </div>
-        
+
         <div class="output" id="output">
-            <h3>Generated Text:</h3>
+            <h3>
+                <i class="fas fa-file-alt"></i>
+                Üretilen Metin:
+            </h3>
             <div class="output-text" id="output-text"></div>
         </div>
-        
+
         <div class="examples">
-            <h4>Try these examples:</h4>
+            <h4>
+                <i class="fas fa-lightbulb"></i>
+                Örnek Başlangıçlar:
+            </h4>
             <div class="example-buttons">
-                <span class="example-btn" onclick="setPrompt('The history of')">The history of</span>
-                <span class="example-btn" onclick="setPrompt('In the year 2050,')">In the year 2050,</span>
-                <span class="example-btn" onclick="setPrompt('Once upon a time')">Once upon a time</span>
-                <span class="example-btn" onclick="setPrompt('The secret to happiness is')">The secret to happiness</span>
+                <span class="example-btn" onclick="setPrompt('The history of')">
+                    <i class="fas fa-book"></i> The history of
+                </span>
+                <span class="example-btn" onclick="setPrompt('In the United States,')">
+                    <i class="fas fa-flag-usa"></i> In the United States,
+                </span>
+                <span class="example-btn" onclick="setPrompt('Once upon a time')">
+                    <i class="fas fa-scroll"></i> Once upon a time
+                </span>
+                <span class="example-btn" onclick="setPrompt('The first season of')">
+                    <i class="fas fa-tv"></i> The first season of
+                </span>
+                <span class="example-btn" onclick="setPrompt('In the future,')">
+                    <i class="fas fa-rocket"></i> In the future,
+                </span>
             </div>
         </div>
+
+        <div class="footer">
+            <p>
+                <i class="fas fa-heart"></i>
+                Bornova Anadolu Lisesi Yazılım Topluluğu tarafından geliştirildi
+            </p>
+            <p style="margin-top: 8px; font-size: 0.85em; color: #666;">
+                WikiText-2 veri seti ile eğitildi • 1M parametre
+            </p>
+        </div>
     </div>
-    
+
     <script>
         function setPrompt(text) {
             document.getElementById('prompt').value = text;
+            document.getElementById('prompt').focus();
         }
-        
+
         async function generateText() {
             const prompt = document.getElementById('prompt').value;
             const maxLength = parseInt(document.getElementById('max-length').value);
             const temperature = parseFloat(document.getElementById('temperature').value);
-            
+
             if (!prompt.trim()) {
-                alert('Please enter a prompt!');
+                alert('Lütfen bir başlangıç metni girin!');
                 return;
             }
-            
-            const button = document.getElementById('generate-btn');
+
+            const button = document.querySelector('.generate-btn');
             const loading = document.getElementById('loading');
             const output = document.getElementById('output');
             const outputText = document.getElementById('output-text');
-            
+
             button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Üretiliyor...';
             loading.classList.add('show');
             output.classList.remove('show');
-            
+
             try {
                 const response = await fetch('/generate', {
                     method: 'POST',
@@ -393,40 +627,46 @@ HTML_TEMPLATE = """
                         temperature: temperature
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.error) {
                     output.classList.add('error');
-                    outputText.textContent = 'Error: ' + data.error;
+                    outputText.textContent = '❌ Hata: ' + data.error;
                 } else {
                     output.classList.remove('error');
                     outputText.textContent = data.generated_text;
                 }
-                
+
                 output.classList.add('show');
             } catch (error) {
                 output.classList.add('error', 'show');
-                outputText.textContent = 'Error: ' + error.message;
+                outputText.textContent = '❌ Bağlantı hatası: ' + error.message;
             } finally {
                 loading.classList.remove('show');
                 button.disabled = false;
+                button.innerHTML = '<i class="fas fa-magic"></i> Metin Üret';
             }
         }
-        
-        // Allow Enter key to generate
+
+        // Enter tuşu ile üret
         document.getElementById('prompt').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 generateText();
             }
+        });
+
+        // Sayfa yüklendiğinde animasyon
+        window.addEventListener('load', function() {
+            document.querySelector('.container').style.animation = 'fadeIn 0.5s ease-in';
         });
     </script>
 </body>
 </html>
 """
 
-# Load model and tokenizer on startup
-print("Loading model and tokenizer...")
+# Model ve tokenizer'ı başlangıçta yükle
+print("Model ve tokenizer yükleniyor...")
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 tokenizer.pad_token = tokenizer.eos_token
 
@@ -436,11 +676,11 @@ if os.path.exists(config.model_path):
     model.load_state_dict(torch.load(config.model_path, map_location=config.device))
     model.to(config.device)
     model.eval()
-    print(f"Model loaded successfully from {config.model_path}")
-    print(f"Running on: {config.device}")
+    print(f"✓ Model başarıyla yüklendi: {config.model_path}")
+    print(f"✓ Cihaz: {config.device}")
 else:
-    print(f"ERROR: Model file '{config.model_path}' not found!")
-    print("Please train the model first using the training script.")
+    print(f"❌ HATA: Model dosyası bulunamadı: '{config.model_path}'")
+    print("Lütfen önce modeli eğitin!")
 
 @app.route('/')
 def home():
@@ -455,9 +695,9 @@ def generate():
         temperature = data.get('temperature', 0.8)
         
         if not prompt:
-            return jsonify({'error': 'Prompt is required'}), 400
+            return jsonify({'error': 'Prompt gerekli'}), 400
         
-        # Generate text
+        # Metin üret
         generated = generate_text(model, tokenizer, prompt, max_length, temperature)
         
         return jsonify({
@@ -469,10 +709,10 @@ def generate():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    print("\n" + "="*50)
-    print("Starting Tiny Language Model Web Server")
-    print("="*50)
-    print("\nOpen your browser and go to: http://localhost:5000")
-    print("Press Ctrl+C to stop the server\n")
+    print("\n" + "="*60)
+    print("BAL AI WEB SERVİSİ BAŞLATILIYOR")
+    print("="*60)
+    print("\nTarayıcınızda şu adresi açın: http://localhost:5000")
+    print("Durdurmak için Ctrl+C tuşlarına basın\n")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
