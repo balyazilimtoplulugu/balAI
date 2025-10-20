@@ -8,6 +8,15 @@ import torch
 import torch.nn as nn
 from transformers import GPT2Tokenizer
 import os
+import gc
+import logging
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 
@@ -64,14 +73,25 @@ class TinyLanguageModel(nn.Module):
         
         return logits
 
+
+# Modify the generate_text function to be more memory efficient
 def generate_text(model, tokenizer, prompt, max_length=50, temperature=0.8):
     """Metinden devam et"""
     model.eval()
     
+    # Use a shorter sequence to save memory
+    max_length = min(max_length, 30)  # Further reduce max length
+    
     input_ids = tokenizer.encode(prompt, return_tensors="pt").to(config.device)
     
     with torch.no_grad():
-        for _ in range(max_length):
+        for i in range(max_length):
+            # Clear cache periodically to free memory
+            if i % 10 == 0:
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            
             if input_ids.shape[1] > config.max_seq_length - 1:
                 input_ids = input_ids[:, -(config.max_seq_length - 1):]
             
@@ -87,7 +107,15 @@ def generate_text(model, tokenizer, prompt, max_length=50, temperature=0.8):
                 break
     
     generated_text = tokenizer.decode(input_ids[0], skip_special_tokens=True)
+    
+    # Clear memory after generation
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    
     return generated_text
+
+
 
 # HTML şablonu
 HTML_TEMPLATE = """
@@ -639,6 +667,10 @@ HTML_TEMPLATE = """
             loading.classList.add('show');
             output.classList.remove('show');
 
+            // Add timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
             try {
                 const response = await fetch('/generate', {
                     method: 'POST',
@@ -649,11 +681,14 @@ HTML_TEMPLATE = """
                         prompt: prompt,
                         max_length: maxLength,
                         temperature: temperature
-                    })
+                    }),
+                    signal: controller.signal
                 });
 
+                clearTimeout(timeoutId);
+
                 if (!response.ok) {
-                    const errorData = await response.json();
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
                     throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
                 }
 
@@ -670,9 +705,14 @@ HTML_TEMPLATE = """
                 output.classList.add('show');
             } catch (error) {
                 output.classList.add('error', 'show');
-                outputText.textContent = '❌ Bağlantı hatası: ' + error.message;
+                if (error.name === 'AbortError') {
+                    outputText.textContent = '❌ Bağlantı hatası: İstek zaman aşımına uğradı. Lütfen daha sonra tekrar deneyin.';
+                } else {
+                    outputText.textContent = '❌ Bağlantı hatası: ' + error.message;
+                }
                 console.error('Error:', error);
             } finally {
+                clearTimeout(timeoutId);
                 loading.classList.remove('show');
                 button.disabled = false;
                 button.innerHTML = '<i class="fas fa-magic"></i> Metin Üret';
@@ -732,15 +772,19 @@ def favicon():
 def logo():
     return send_from_directory('static', 'logo.png', mimetype='image/png')
 
+# Update the generate endpoint with better error handling and logging
 @app.route('/generate', methods=['POST'])
 def generate():
+    start_time = datetime.now()
+    logger.info(f"Generation request started at {start_time}")
+    
     try:
         data = request.json
         if not data:
             return jsonify({'error': 'No JSON data received'}), 400
             
         prompt = data.get('prompt', '')
-        max_length = min(data.get('max_length', 100), 50)  # Limit to 50 tokens max
+        max_length = min(data.get('max_length', 100), 30)  # Limit to 30 tokens max
         temperature = data.get('temperature', 0.8)
         
         if not prompt:
@@ -748,9 +792,16 @@ def generate():
         
         # Check if model exists before trying to generate
         if not os.path.exists(config.model_path):
+            logger.error(f"Model file not found: {config.model_path}")
             return jsonify({'error': f'Model dosyası bulunamadı: {config.model_path}'}), 500
         
+        logger.info(f"Generating text with prompt: {prompt[:50]}..., max_length: {max_length}, temperature: {temperature}")
+        
         generated = generate_text(model, tokenizer, prompt, max_length, temperature)
+        
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        logger.info(f"Generation completed in {duration:.2f} seconds")
 
         return jsonify({
             'generated_text': generated,
@@ -758,19 +809,33 @@ def generate():
         })
     
     except TimeoutError:
+        logger.error("Generation timed out")
         return jsonify({'error': 'Metin üretimi çok uzun sürdü. Daha kısa bir uzunluk deneyin.'}), 408
     except Exception as e:
-        # Log the error for debugging
-        app.logger.error(f"Error in generate endpoint: {str(e)}")
+        logger.error(f"Error in generate endpoint: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/health')
 def health():
-    return jsonify({
-        'status': 'ok',
-        'model_loaded': os.path.exists(config.model_path),
-        'device': config.device
-    })
+    try:
+        # Check if model is loaded
+        model_loaded = os.path.exists(config.model_path)
+        
+        # Check memory usage
+        import psutil
+        memory_usage = psutil.virtual_memory().percent
+        
+        return jsonify({
+            'status': 'ok',
+            'model_loaded': model_loaded,
+            'memory_usage': memory_usage,
+            'device': config.device
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

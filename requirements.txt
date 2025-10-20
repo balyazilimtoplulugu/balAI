@@ -1,5 +1,6 @@
 Flask>=3.0.0
 transformers>=4.35.0
 gunicorn>=21.2.0
---find-links https://download.pytorch.org/whl/torch_stable.html
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.5.1
+psutil
