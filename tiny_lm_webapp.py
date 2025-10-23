@@ -1,6 +1,7 @@
 """
 BAL AI - Bornova Anadolu Lisesi Yapay Zeka Modeli
-Flask web uygulaması
+Flask web uygulaması - Dual Model Support
+COMPLETE VERSION - Ready to deploy!
 """
 
 from flask import Flask, render_template_string, request, jsonify, send_from_directory
@@ -11,12 +12,11 @@ import os
 import gc
 import logging
 from datetime import datetime
+import threading
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 
@@ -29,8 +29,24 @@ class Config:
     num_heads = 4
     ff_dim = 512
     dropout = 0.1
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_path = "tiny_lm_model.pt"
+    device = "cpu"  # Force CPU for Render
+    
+    # Model paths
+    models = {
+        "wikitext2": {
+            "path": "tiny_lm_model.pt",
+            "name": "WikiText-2 (İlk Model)",
+            "description": "5MB veri ile eğitildi",
+            "params": "13M parametre"
+        },
+        "wikitext103": {
+            "path": "tiny_lm_model_wikitext103_best.pt",
+            "name": "WikiText-103 (Gelişmiş Model)",
+            "description": "500MB veri ile eğitildi",
+            "params": "13M parametre"
+        }
+    }
+    default_model = "wikitext103"
 
 config = Config()
 
@@ -73,24 +89,45 @@ class TinyLanguageModel(nn.Module):
         
         return logits
 
+# Global model cache
+loaded_models = {}
+model_lock = threading.Lock()
 
-# Modify the generate_text function to be more memory efficient
+def load_model(model_key):
+    """Load a model into memory"""
+    with model_lock:
+        if model_key in loaded_models:
+            return loaded_models[model_key]
+        
+        model_path = config.models[model_key]["path"]
+        if not os.path.exists(model_path):
+            logger.error(f"Model file not found: {model_path}")
+            return None
+        
+        try:
+            model = TinyLanguageModel(config)
+            model.load_state_dict(torch.load(model_path, map_location='cpu'))
+            model.to('cpu')
+            model.eval()
+            loaded_models[model_key] = model
+            return model
+        except Exception as e:
+            logger.error(f"Error loading model {model_key}: {str(e)}")
+            return None
+
 def generate_text(model, tokenizer, prompt, max_length=50, temperature=0.8):
     """Metinden devam et"""
     model.eval()
     
     # Use a shorter sequence to save memory
-    max_length = min(max_length, 30)  # Further reduce max length
+    max_length = min(max_length, 30)
     
     input_ids = tokenizer.encode(prompt, return_tensors="pt").to(config.device)
     
     with torch.no_grad():
         for i in range(max_length):
-            # Clear cache periodically to free memory
             if i % 10 == 0:
                 gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
             
             if input_ids.shape[1] > config.max_seq_length - 1:
                 input_ids = input_ids[:, -(config.max_seq_length - 1):]
@@ -108,14 +145,8 @@ def generate_text(model, tokenizer, prompt, max_length=50, temperature=0.8):
     
     generated_text = tokenizer.decode(input_ids[0], skip_special_tokens=True)
     
-    # Clear memory after generation
     gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    
     return generated_text
-
-
 
 # HTML şablonu
 HTML_TEMPLATE = """
@@ -127,29 +158,26 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- SEO Meta Tags -->
-    <meta name="description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 1 milyon parametreli yapay zeka dil modeli.">
+    <meta name="description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş yapay zeka dil modelleri.">
     <meta name="keywords" content="Bornova Anadolu Lisesi, BAL, yapay zeka, AI, dil modeli, öğrenci projesi, makine öğrenmesi">
     <meta name="author" content="Bornova Anadolu Lisesi Yazılım Topluluğu">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="">
+    <meta property="og:url" content="https://balai-5tqa.onrender.com">
     <meta property="og:title" content="BAL AI - Bornova Anadolu Lisesi Yapay Zeka">
-    <meta property="og:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 1 milyon parametreli yapay zeka dil modeli.">
-    <!-- Open Graph -->
+    <meta property="og:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş yapay zeka dil modelleri.">
     <meta property="og:image" content="https://balai-5tqa.onrender.com/logo.png">
 
     <!-- Twitter -->
-    <meta name="twitter:image" content="https://balai-5tqa.onrender.com/logo.png">
-    
-    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="BAL AI - Bornova Anadolu Lisesi Yapay Zeka">
-    <meta name="twitter:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş 1 milyon parametreli yapay zeka dil modeli.">
+    <meta name="twitter:description" content="Bornova Anadolu Lisesi öğrencileri tarafından eğitilmiş yapay zeka dil modelleri.">
+    <meta name="twitter:image" content="https://balai-5tqa.onrender.com/logo.png">
     
     <!-- Favicon -->
-    <link rel="shortcut icon" href="https://balai-5tqa.onrender.com/favicon.ico">
-    <link rel="icon" href="https://balai-5tqa.onrender.com/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/favicon.ico">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -225,16 +253,74 @@ HTML_TEMPLATE = """
             font-size: 1.1em;
         }
         
+        .model-selector {
+            background: #fef2f2;
+            border: 2px solid #fecaca;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .model-selector h3 {
+            color: #991b1b;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .model-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .model-option {
+            background: white;
+            border: 2px solid #fecaca;
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .model-option:hover {
+            border-color: #dc2626;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+        }
+        
+        .model-option.active {
+            border-color: #dc2626;
+            background: linear-gradient(to bottom right, #fef2f2, #fff);
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+        }
+        
+        .model-option input[type="radio"] {
+            margin-right: 10px;
+        }
+        
+        .model-name {
+            font-weight: 700;
+            color: #991b1b;
+            font-size: 1.05em;
+            margin-bottom: 5px;
+        }
+        
+        .model-desc {
+            font-size: 0.85em;
+            color: #666;
+        }
+        
         .badge {
             display: inline-block;
             background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
             color: white;
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-size: 0.85em;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75em;
             font-weight: 600;
-            margin-top: 15px;
-            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+            margin-top: 5px;
         }
         
         .input-section {
@@ -522,7 +608,7 @@ HTML_TEMPLATE = """
                 font-size: 2em;
             }
             
-            .settings {
+            .settings, .model-options {
                 grid-template-columns: 1fr;
             }
             
@@ -544,8 +630,30 @@ HTML_TEMPLATE = """
                 <h1>BAL AI</h1>
             </div>
             <p class="subtitle">Bornova Anadolu Lisesi Yapay Zeka Modeli</p>
-            <div class="badge">
-                <i class="fas fa-graduation-cap"></i> 1 Milyon Parametre
+        </div>
+
+        <div class="model-selector">
+            <h3>
+                <i class="fas fa-robot"></i>
+                Model Seçimi:
+            </h3>
+            <div class="model-options">
+                <label class="model-option" for="model-wikitext2">
+                    <input type="radio" name="model" id="model-wikitext2" value="wikitext2">
+                    <div>
+                        <div class="model-name">WikiText-2</div>
+                        <div class="model-desc">İlk deneysel model</div>
+                        <span class="badge">5MB veri</span>
+                    </div>
+                </label>
+                <label class="model-option active" for="model-wikitext103">
+                    <input type="radio" name="model" id="model-wikitext103" value="wikitext103" checked>
+                    <div>
+                        <div class="model-name">WikiText-103</div>
+                        <div class="model-desc">Gelişmiş model</div>
+                        <span class="badge">500MB veri</span>
+                    </div>
+                </label>
             </div>
         </div>
 
@@ -557,7 +665,7 @@ HTML_TEMPLATE = """
             <input 
                 type="text" 
                 id="prompt" 
-                placeholder="Örn: Yapay zekanın geleceği..." 
+                placeholder="Örn: The history of..." 
                 autocomplete="off"
             />
         </div>
@@ -568,7 +676,7 @@ HTML_TEMPLATE = """
                     <i class="fas fa-text-width"></i>
                     Maksimum Uzunluk:
                 </div>
-                <input type="number" id="max-length" value="10" min="1" max="500" />
+                <input type="number" id="max-length" value="20" min="5" max="50" />
             </div>
             <div class="setting-group">
                 <div class="setting-label">
@@ -636,12 +744,21 @@ HTML_TEMPLATE = """
                 Bornova Anadolu Lisesi Yazılım Topluluğu tarafından geliştirildi
             </p>
             <p style="margin-top: 8px; font-size: 0.85em; color: #666;">
-                WikiText-2 veri seti ile eğitildi • 1M parametre
+                13 Milyon parametre • WikiText veri setleri ile eğitildi
             </p>
         </div>
     </div>
 
     <script>
+        // Model selection handling
+        document.querySelectorAll('.model-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
+                this.classList.add('active');
+                this.querySelector('input[type="radio"]').checked = true;
+            });
+        });
+
         function setPrompt(text) {
             document.getElementById('prompt').value = text;
             document.getElementById('prompt').focus();
@@ -651,6 +768,7 @@ HTML_TEMPLATE = """
             const prompt = document.getElementById('prompt').value;
             const maxLength = parseInt(document.getElementById('max-length').value);
             const temperature = parseFloat(document.getElementById('temperature').value);
+            const selectedModel = document.querySelector('input[name="model"]:checked').value;
 
             if (!prompt.trim()) {
                 alert('Lütfen bir başlangıç metni girin!');
@@ -667,9 +785,8 @@ HTML_TEMPLATE = """
             loading.classList.add('show');
             output.classList.remove('show');
 
-            // Add timeout
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), 60000);
 
             try {
                 const response = await fetch('/generate', {
@@ -680,7 +797,8 @@ HTML_TEMPLATE = """
                     body: JSON.stringify({
                         prompt: prompt,
                         max_length: maxLength,
-                        temperature: temperature
+                        temperature: temperature,
+                        model: selectedModel
                     }),
                     signal: controller.signal
                 });
@@ -706,9 +824,9 @@ HTML_TEMPLATE = """
             } catch (error) {
                 output.classList.add('error', 'show');
                 if (error.name === 'AbortError') {
-                    outputText.textContent = '❌ Bağlantı hatası: İstek zaman aşımına uğradı. Lütfen daha sonra tekrar deneyin.';
+                    outputText.textContent = '❌ İstek zaman aşımına uğradı. Lütfen daha sonra tekrar deneyin.';
                 } else {
-                    outputText.textContent = '❌ Bağlantı hatası: ' + error.message;
+                    outputText.textContent = '❌ Hata: ' + error.message;
                 }
                 console.error('Error:', error);
             } finally {
@@ -725,40 +843,17 @@ HTML_TEMPLATE = """
                 generateText();
             }
         });
-
-        // Sayfa yüklendiğinde animasyon
-        window.addEventListener('load', function() {
-            document.querySelector('.container').style.animation = 'fadeIn 0.5s ease-in';
-        });
     </script>
 </body>
 </html>
 """
 
-# Model ve tokenizer'ı başlangıçta yükle
-print("Model ve tokenizer yükleniyor...")
+# Initialize tokenizer
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 tokenizer.pad_token = tokenizer.eos_token
 
-model = TinyLanguageModel(config)
-
-# Check if model exists and load it
-if os.path.exists(config.model_path):
-    try:
-        model.load_state_dict(torch.load(config.model_path, map_location='cpu'))
-        model.to('cpu')  # Force CPU
-        model.eval()
-        print(f"✓ Model başarıyla yüklendi: {config.model_path}")
-        print(f"✓ Cihaz: {config.device}")
-    except Exception as e:
-        print(f"❌ Model yüklenirken hata: {str(e)}")
-        # Create a dummy model so the app doesn't crash
-        model.eval()
-else:
-    print(f"❌ HATA: Model dosyası bulunamadı: '{config.model_path}'")
-    print("Boş bir model oluşturuluyor...")
-    # Create a dummy model so the app doesn't crash
-    model.eval()
+# Preload default model on startup
+default_model = load_model(config.default_model)
 
 @app.route('/')
 def home():
@@ -772,63 +867,83 @@ def favicon():
 def logo():
     return send_from_directory('static', 'logo.png', mimetype='image/png')
 
-# Update the generate endpoint with better error handling and logging
 @app.route('/generate', methods=['POST'])
 def generate():
     start_time = datetime.now()
-    logger.info(f"Generation request started at {start_time}")
     
     try:
         data = request.json
         if not data:
-            return jsonify({'error': 'No JSON data received'}), 400
+            return jsonify({'error': 'JSON verisi alınamadı'}), 400
             
         prompt = data.get('prompt', '')
-        max_length = min(data.get('max_length', 100), 30)  # Limit to 30 tokens max
+        max_length = min(data.get('max_length', 20), 30)
         temperature = data.get('temperature', 0.8)
+        model_key = data.get('model', config.default_model)
         
         if not prompt:
             return jsonify({'error': 'Prompt gerekli'}), 400
         
-        # Check if model exists before trying to generate
-        if not os.path.exists(config.model_path):
-            logger.error(f"Model file not found: {config.model_path}")
-            return jsonify({'error': f'Model dosyası bulunamadı: {config.model_path}'}), 500
+        # Validate model key
+        if model_key not in config.models:
+            return jsonify({'error': f'Geçersiz model: {model_key}'}), 400
         
-        logger.info(f"Generating text with prompt: {prompt[:50]}..., max_length: {max_length}, temperature: {temperature}")
+        # Load model if not already loaded
+        model = load_model(model_key)
+        if model is None:
+            return jsonify({'error': f'Model yüklenemedi: {config.models[model_key]["name"]}'}), 500
         
-        generated = generate_text(model, tokenizer, prompt, max_length, temperature)
+        
+        # Generate text with timeout protection
+        result = {'text': None, 'error': None}
+        
+        def generate_with_timeout():
+            try:
+                result['text'] = generate_text(model, tokenizer, prompt, max_length, temperature)
+            except Exception as e:
+                result['error'] = str(e)
+        
+        thread = threading.Thread(target=generate_with_timeout)
+        thread.daemon = True
+        thread.start()
+        thread.join(timeout=25)
+        
+        if thread.is_alive():
+            return jsonify({'error': 'Metin üretimi çok uzun sürdü. Daha kısa bir uzunluk deneyin.'}), 408
+        
+        if result['error']:
+            return jsonify({'error': result['error']}), 500
+        
+        if result['text'] is None:
+            return jsonify({'error': 'Metin üretilemedi'}), 500
         
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        logger.info(f"Generation completed in {duration:.2f} seconds")
 
         return jsonify({
-            'generated_text': generated,
-            'prompt': prompt
+            'generated_text': result['text'],
+            'prompt': prompt,
+            'model': model_key
         })
     
-    except TimeoutError:
-        logger.error("Generation timed out")
-        return jsonify({'error': 'Metin üretimi çok uzun sürdü. Daha kısa bir uzunluk deneyin.'}), 408
     except Exception as e:
-        logger.error(f"Error in generate endpoint: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/health')
 def health():
     try:
-        # Check if model is loaded
-        model_loaded = os.path.exists(config.model_path)
-        
-        # Check memory usage
-        import psutil
-        memory_usage = psutil.virtual_memory().percent
+        models_status = {}
+        for key, model_info in config.models.items():
+            models_status[key] = {
+                'name': model_info['name'],
+                'available': os.path.exists(model_info['path']),
+                'loaded': key in loaded_models
+            }
         
         return jsonify({
             'status': 'ok',
-            'model_loaded': model_loaded,
-            'memory_usage': memory_usage,
+            'models': models_status,
             'device': config.device
         })
     except Exception as e:
